@@ -1,7 +1,37 @@
 FROM node:20-slim
 
-# Install gosu for privilege dropping in entrypoint
-RUN apt-get update && apt-get install -y --no-install-recommends gosu && rm -rf /var/lib/apt/lists/*
+# Install gosu for privilege dropping + wget/unzip for SDK download + JDK 17 + ffmpeg
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      gosu wget unzip openjdk-17-jdk-headless ffmpeg \
+  && rm -rf /var/lib/apt/lists/*
+
+# node-mobile toolchain: Android SDK (cmdline-tools 14742923)
+# Path A (TUR-254): extend base Railway image in-place for v1.
+ARG CMDLINE_TOOLS_VERSION=14742923
+ARG BUILD_TOOLS_VERSION=34.0.0
+
+ENV ANDROID_SDK_ROOT=/opt/android-sdk \
+    ANDROID_HOME=/opt/android-sdk \
+    JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64
+
+RUN mkdir -p "${ANDROID_SDK_ROOT}/cmdline-tools" \
+  && wget -q "https://dl.google.com/android/repository/commandlinetools-linux-${CMDLINE_TOOLS_VERSION}_latest.zip" -O /tmp/cmdline-tools.zip \
+  && unzip -q /tmp/cmdline-tools.zip -d /tmp/cmdline-tools-extract \
+  && mv /tmp/cmdline-tools-extract/cmdline-tools "${ANDROID_SDK_ROOT}/cmdline-tools/latest" \
+  && rm -rf /tmp/cmdline-tools.zip /tmp/cmdline-tools-extract \
+  && yes | "${ANDROID_SDK_ROOT}/cmdline-tools/latest/bin/sdkmanager" --licenses \
+  && "${ANDROID_SDK_ROOT}/cmdline-tools/latest/bin/sdkmanager" \
+       "platform-tools" \
+       "build-tools;${BUILD_TOOLS_VERSION}" \
+       "platforms;android-34" \
+       "platforms;android-35" \
+  && chmod -R 755 "${ANDROID_SDK_ROOT}"
+
+# Build-time smoke — validates toolchain is functional
+RUN javac -version \
+  && "${ANDROID_SDK_ROOT}/platform-tools/adb" version \
+  && ffmpeg -version 2>&1 | head -1 \
+  && "${ANDROID_SDK_ROOT}/build-tools/${BUILD_TOOLS_VERSION}/apksigner" version
 
 # Create a non-root user (required: Claude CLI refuses --dangerously-skip-permissions as root)
 RUN groupadd -r paperclip && useradd -r -g paperclip -m -d /home/paperclip -s /bin/bash paperclip
@@ -26,7 +56,8 @@ COPY entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 
 # Railway injects PORT at runtime (default 3100)
-ENV PORT=3100
+ENV PORT=3100 \
+    PATH="/opt/android-sdk/cmdline-tools/latest/bin:/opt/android-sdk/platform-tools:/opt/android-sdk/build-tools/34.0.0:${PATH}"
 EXPOSE 3100
 
 # Entrypoint runs as root to fix volume permissions, then drops to paperclip user
