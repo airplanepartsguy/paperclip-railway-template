@@ -1,9 +1,14 @@
 FROM node:20-slim
 
-# Install gosu for privilege dropping + wget/unzip for SDK download + JDK 17 + ffmpeg
+# Install gosu for privilege dropping + wget/unzip for SDK download + JDK 17 + ffmpeg + Python 3 for Hermes
 RUN apt-get update && apt-get install -y --no-install-recommends \
       gosu wget unzip openjdk-17-jdk-headless ffmpeg \
+      python3 python3-pip python3-venv \
   && rm -rf /var/lib/apt/lists/*
+
+# Install Hermes Agent (Nous Research) — required by the hermes_local adapter
+RUN python3 -m pip install --break-system-packages hermes-agent \
+  && hermes --version
 
 # node-mobile toolchain: Android SDK (cmdline-tools 14742923)
 # Path A (TUR-254): extend base Railway image in-place for v1.
