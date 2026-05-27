@@ -10,17 +10,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 RUN python3 -m pip install --break-system-packages hermes-agent \
   && hermes --version
 
-# Bootstrap minimal Hermes config for the paperclip user
-# The hermes_local adapter reads ~/.hermes/config.yaml to detect the model.
-# ANTHROPIC_API_KEY is injected at runtime via Railway env vars.
-RUN mkdir -p /home/paperclip/.hermes && \
-    echo 'model:' > /home/paperclip/.hermes/config.yaml && \
-    echo '  default: claude-sonnet-4-6' >> /home/paperclip/.hermes/config.yaml && \
-    echo '  provider: anthropic' >> /home/paperclip/.hermes/config.yaml && \
-    echo 'agent:' >> /home/paperclip/.hermes/config.yaml && \
-    echo '  max_turns: 100' >> /home/paperclip/.hermes/config.yaml && \
-    chown -R paperclip:paperclip /home/paperclip/.hermes
-
 # node-mobile toolchain: Android SDK (cmdline-tools 14742923)
 # Path A (TUR-254): extend base Railway image in-place for v1.
 ARG CMDLINE_TOOLS_VERSION=14742923
@@ -51,6 +40,12 @@ RUN javac -version \
 
 # Create a non-root user (required: Claude CLI refuses --dangerously-skip-permissions as root)
 RUN groupadd -r paperclip && useradd -r -g paperclip -m -d /home/paperclip -s /bin/bash paperclip
+
+# Bootstrap minimal Hermes config for the paperclip user
+RUN mkdir -p /home/paperclip/.hermes && \
+    printf 'model:\n  default: claude-sonnet-4-6\n  provider: anthropic\nagent:\n  max_turns: 100\n' \
+    > /home/paperclip/.hermes/config.yaml && \
+    chown -R paperclip:paperclip /home/paperclip/.hermes
 
 # Create the paperclip home directory (Railway volume mount point)
 RUN mkdir -p /paperclip && chown -R paperclip:paperclip /paperclip
