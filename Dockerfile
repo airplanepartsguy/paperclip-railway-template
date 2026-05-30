@@ -1,10 +1,23 @@
 FROM node:20-slim
 
 # Install gosu for privilege dropping + wget/unzip for SDK download + JDK 17 + ffmpeg + Python 3 for Hermes
+# git + gh (GitHub CLI): REQUIRED by claude_local agents to clone repos, commit, push, and open PRs.
+# Without git, the platform fails managed checkout ("spawn git ENOENT"), drops the agent into an
+# empty fallback workspace, and the agent reports success having shipped nothing. ca-certificates +
+# curl are needed to add the GitHub CLI apt repo.
 RUN apt-get update && apt-get install -y --no-install-recommends \
       gosu wget unzip openjdk-17-jdk-headless ffmpeg \
       python3 python3-pip python3-venv \
-  && rm -rf /var/lib/apt/lists/*
+      ca-certificates curl gnupg git \
+  && mkdir -p -m 755 /etc/apt/keyrings \
+  && curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg \
+       | gpg --dearmor -o /etc/apt/keyrings/githubcli-archive-keyring.gpg \
+  && chmod go+r /etc/apt/keyrings/githubcli-archive-keyring.gpg \
+  && echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" \
+       > /etc/apt/sources.list.d/github-cli.list \
+  && apt-get update && apt-get install -y --no-install-recommends gh \
+  && rm -rf /var/lib/apt/lists/* \
+  && git --version && gh --version
 
 # Install Hermes Agent (Nous Research) — required by the hermes_local adapter
 RUN python3 -m pip install --break-system-packages hermes-agent \
