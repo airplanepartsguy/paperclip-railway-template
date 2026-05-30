@@ -20,7 +20,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
   && git --version && gh --version
 
 # Install Hermes Agent (Nous Research) — required by the hermes_local adapter
-RUN python3 -m pip install --break-system-packages hermes-agent \
+# Install Hermes Agent (Nous Research) — required by the hermes_local adapter.
+# The 'anthropic' package is required for Hermes' Anthropic provider; hermes-agent
+# does not pull it in by default, so the agent fails to initialize with
+# "The 'anthropic' package is required for the Anthropic provider". Install it
+# explicitly (pinned to the version Hermes needs).
+RUN python3 -m pip install --break-system-packages hermes-agent "anthropic>=0.39.0" \
   && hermes --version
 
 # node-mobile toolchain: Android SDK (cmdline-tools 14742923)
